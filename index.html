@@ -15,7 +15,7 @@
     a { color: #7cf; }
     video { margin-top: 20px; width: 100%; border-radius: 8px; background: #000; }
   </style>
-<script src="https://cdn.jsdelivr.net/npm/@ffmpeg.wasm/main@0.12.x/dist/ffmpeg.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg.wasm/main@0.13.1/dist/index.global.min.js"></script>
 </head>
 <body>
   <h2>🎬 Loop Video to Audio Duration (Client-Side)</h2>
@@ -34,7 +34,7 @@
     const { createFFmpeg, fetchFile } = FFmpeg;
     const ffmpeg = createFFmpeg({
       log: true,
-      corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.x/dist/ffmpeg-core.js"
+      corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.min.js"
     });
 
     async function getMediaDuration(file, type) {
