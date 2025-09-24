@@ -31,80 +31,78 @@
     <a id="download" download="looped_video.mp4" style="display:none"></a>
   </div>
   <script>
-  window.onload = function() {
-    const { createFFmpeg, fetchFile } = FFmpeg;
-    const ffmpeg = createFFmpeg({
-      log: true,
-      corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.min.js"
+  let { createFFmpeg, fetchFile } = FFmpeg;
+  let ffmpeg = createFFmpeg({
+    log: true,
+    corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.min.js"
+  });
+
+  async function getMediaDuration(file, type) {
+    return new Promise((resolve, reject) => {
+      const m = document.createElement(type);
+      m.preload = 'metadata';
+      m.onloadedmetadata = () => {
+        URL.revokeObjectURL(m.src);
+        resolve(m.duration);
+      };
+      m.onerror = reject;
+      m.src = URL.createObjectURL(file);
     });
+  }
 
-    async function getMediaDuration(file, type) {
-      return new Promise((resolve, reject) => {
-        const m = document.createElement(type);
-        m.preload = 'metadata';
-        m.onloadedmetadata = () => {
-          URL.revokeObjectURL(m.src);
-          resolve(m.duration);
-        };
-        m.onerror = reject;
-        m.src = URL.createObjectURL(file);
-      });
-    }
+  async function startProcess() {
+    const videoFile = document.getElementById('video').files[0];
+    const audioFile = document.getElementById('audio').files[0];
+    const progress = document.getElementById('progress');
+    const status = document.getElementById('status');
+    const outVid = document.getElementById('output');
+    const dl = document.getElementById('download');
 
-    async function startProcess() {
-      const videoFile = document.getElementById('video').files[0];
-      const audioFile = document.getElementById('audio').files[0];
-      const progress = document.getElementById('progress');
-      const status = document.getElementById('status');
-      const outVid = document.getElementById('output');
-      const dl = document.getElementById('download');
+    if (!videoFile || !audioFile) { status.textContent = "Please select both files."; return; }
+    status.textContent = ""; outVid.style.display = "none"; dl.style.display = "none";
+    progress.textContent = "Loading FFmpeg core...";
 
-      if (!videoFile || !audioFile) { status.textContent = "Please select both files."; return; }
-      status.textContent = ""; outVid.style.display = "none"; dl.style.display = "none";
-      progress.textContent = "Loading FFmpeg core...";
+    if (!ffmpeg.isLoaded()) await ffmpeg.load();
 
-      if (!ffmpeg.isLoaded()) await ffmpeg.load();
+    // Clean FS before processing
+    for(const f of ['input_video.mp4','input_audio.mp3','concat.txt','looped.mp4','output.mp4'])
+      try { ffmpeg.FS('unlink', f); } catch{}
+    
+    progress.textContent = "Getting media durations...";
+    const videoDuration = await getMediaDuration(videoFile, 'video');
+    const audioDuration = await getMediaDuration(audioFile, 'audio');
+    const loopsNeeded = Math.ceil(audioDuration / videoDuration);
+    progress.textContent = `Video: ${videoDuration.toFixed(2)}s, Audio: ${audioDuration.toFixed(2)}s, Loops: ${loopsNeeded}`;
 
-      // Clean FS before processing
-      for(const f of ['input_video.mp4','input_audio.mp3','concat.txt','looped.mp4','output.mp4'])
-        try { ffmpeg.FS('unlink', f); } catch{}
-      
-      progress.textContent = "Getting media durations...";
-      const videoDuration = await getMediaDuration(videoFile, 'video');
-      const audioDuration = await getMediaDuration(audioFile, 'audio');
-      const loopsNeeded = Math.ceil(audioDuration / videoDuration);
-      progress.textContent = `Video: ${videoDuration.toFixed(2)}s, Audio: ${audioDuration.toFixed(2)}s, Loops: ${loopsNeeded}`;
+    progress.textContent = "Writing files to memory...";
+    await ffmpeg.FS('writeFile', 'input_video.mp4', await fetchFile(videoFile));
+    await ffmpeg.FS('writeFile', 'input_audio.mp3', await fetchFile(audioFile));
+    let concat = Array.from({length: loopsNeeded}, ()=>"file 'input_video.mp4'").join("\n");
+    await ffmpeg.FS('writeFile', 'concat.txt', concat);
 
-      progress.textContent = "Writing files to memory...";
-      await ffmpeg.FS('writeFile', 'input_video.mp4', await fetchFile(videoFile));
-      await ffmpeg.FS('writeFile', 'input_audio.mp3', await fetchFile(audioFile));
-      let concat = Array.from({length: loopsNeeded}, ()=>"file 'input_video.mp4'").join("\n");
-      await ffmpeg.FS('writeFile', 'concat.txt', concat);
+    status.textContent = "Looping video and syncing...";
+    await ffmpeg.run(
+      '-f','concat','-safe','0','-i','concat.txt',
+      '-c','copy','-t', audioDuration.toString(),'looped.mp4'
+    );
+    status.textContent = "Combining audio with looped video...";
+    await ffmpeg.run(
+      '-i','looped.mp4','-i','input_audio.mp3',
+      '-c:v','copy','-c:a','aac','-shortest','output.mp4'
+    );
+    status.textContent = "Done! Rendering preview...";
 
-      status.textContent = "Looping video and syncing...";
-      await ffmpeg.run(
-        '-f','concat','-safe','0','-i','concat.txt',
-        '-c','copy','-t', audioDuration.toString(),'looped.mp4'
-      );
-      status.textContent = "Combining audio with looped video...";
-      await ffmpeg.run(
-        '-i','looped.mp4','-i','input_audio.mp3',
-        '-c:v','copy','-c:a','aac','-shortest','output.mp4'
-      );
-      status.textContent = "Done! Rendering preview...";
+    const output = ffmpeg.FS('readFile', 'output.mp4');
+    const blob = new Blob([output.buffer], {type:'video/mp4'});
+    const url = URL.createObjectURL(blob);
+    outVid.src = url;
+    outVid.style.display = "";
+    dl.href = url;
+    dl.textContent = "⬇️ Download Looped Video";
+    dl.style.display = "";
+    status.textContent = "✅ Complete!";
 
-      const output = ffmpeg.FS('readFile', 'output.mp4');
-      const blob = new Blob([output.buffer], {type:'video/mp4'});
-      const url = URL.createObjectURL(blob);
-      outVid.src = url;
-      outVid.style.display = "";
-      dl.href = url;
-      dl.textContent = "⬇️ Download Looped Video";
-      dl.style.display = "";
-      status.textContent = "✅ Complete!";
-
-      // Optionally, cleanup FS here if memory pressure.
-    }
+    // Optionally, cleanup FS here if memory pressure.
   }
   </script>
 </body>
