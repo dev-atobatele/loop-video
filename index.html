@@ -1,109 +1,42 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Client-Side Video Looper</title>
-  <style>
-    body { max-width: 700px; margin: 40px auto; font-family: system-ui; color: #eee; background: #121215; }
-    .container { padding: 30px; border-radius: 12px; background: #232336; margin-top: 40px; }
-    label { color: #aad; font-weight: 600; }
-    input[type=file] { width: 100%; margin: 10px 0 20px; color: #fff; }
-    button { width: 100%; margin-top: 10px; padding: 12px; background: #3355ee; color: #fff; border: 0; border-radius: 6px; font-size: 18px; }
-    #progress { margin-top: 24px; color: #aaa; }
-    #status { margin-top: 12px; color: #dc0; }
-    a { color: #7cf; }
-    video { margin-top: 20px; width: 100%; border-radius: 8px; background: #000; }
-  </style>
-<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.min.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
 </head>
 <body>
-  <h2>🎬 Loop Video to Audio Duration (Client-Side)</h2>
-  <div class="container">
-    <label>Video (MP4, WebM):</label>
-    <input type="file" id="video" accept="video/*" />
-    <label>Audio (MP3, WAV):</label>
-    <input type="file" id="audio" accept="audio/*" />
-    <button onclick="startProcess()" id="go">Loop Video</button>
-    <div id="progress"></div>
-    <div id="status"></div>
-    <video id="output" controls style="display:none"></video>
-    <a id="download" download="looped_video.mp4" style="display:none"></a>
-  </div>
-  <script>
-  const { createFFmpeg, fetchFile } = FFmpeg;
-  const ffmpeg = createFFmpeg({
-    log: true,
-    corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.min.js"
-  });
-
-  async function getMediaDuration(file, type) {
-    return new Promise((resolve, reject) => {
-      const m = document.createElement(type);
-      m.preload = 'metadata';
-      m.onloadedmetadata = () => {
-        URL.revokeObjectURL(m.src);
-        resolve(m.duration);
-      };
-      m.onerror = reject;
-      m.src = URL.createObjectURL(file);
-    });
-  }
-
-  async function startProcess() {
-    const videoFile = document.getElementById('video').files[0];
-    const audioFile = document.getElementById('audio').files[0];
-    const progress = document.getElementById('progress');
-    const status = document.getElementById('status');
-    const outVid = document.getElementById('output');
-    const dl = document.getElementById('download');
-
-    if (!videoFile || !audioFile) { status.textContent = "Please select both files."; return; }
-    status.textContent = ""; outVid.style.display = "none"; dl.style.display = "none";
-    progress.textContent = "Loading FFmpeg core...";
-
-    if (!ffmpeg.isLoaded()) await ffmpeg.load();
-
-    // Clean FS before processing
-    for(const f of ['input_video.mp4','input_audio.mp3','concat.txt','looped.mp4','output.mp4'])
-      try { ffmpeg.FS('unlink', f); } catch{}
+    <input type="file" id="fileInput" accept="video/*">
+    <video id="output" controls style="display: none;"></video>
     
-    progress.textContent = "Getting media durations...";
-    const videoDuration = await getMediaDuration(videoFile, 'video');
-    const audioDuration = await getMediaDuration(audioFile, 'audio');
-    const loopsNeeded = Math.ceil(audioDuration / videoDuration);
-    progress.textContent = `Video: ${videoDuration.toFixed(2)}s, Audio: ${audioDuration.toFixed(2)}s, Loops: ${loopsNeeded}`;
-
-    progress.textContent = "Writing files to memory...";
-    await ffmpeg.FS('writeFile', 'input_video.mp4', await fetchFile(videoFile));
-    await ffmpeg.FS('writeFile', 'input_audio.mp3', await fetchFile(audioFile));
-    let concat = Array.from({length: loopsNeeded}, ()=>"file 'input_video.mp4'").join("\n");
-    await ffmpeg.FS('writeFile', 'concat.txt', concat);
-
-    status.textContent = "Looping video and syncing...";
-    await ffmpeg.run(
-      '-f','concat','-safe','0','-i','concat.txt',
-      '-c','copy','-t', audioDuration.toString(),'looped.mp4'
-    );
-    status.textContent = "Combining audio with looped video...";
-    await ffmpeg.run(
-      '-i','looped.mp4','-i','input_audio.mp3',
-      '-c:v','copy','-c:a','aac','-shortest','output.mp4'
-    );
-    status.textContent = "Done! Rendering preview...";
-
-    const output = ffmpeg.FS('readFile', 'output.mp4');
-    const blob = new Blob([output.buffer], {type:'video/mp4'});
-    const url = URL.createObjectURL(blob);
-    outVid.src = url;
-    outVid.style.display = "";
-    dl.href = url;
-    dl.textContent = "⬇️ Download Looped Video";
-    dl.style.display = "";
-    status.textContent = "✅ Complete!";
-
-    // Optionally, cleanup FS here if memory pressure.
-  }
-  </script>
+    <script>
+        const { FFmpeg } = FFmpegWASM;
+        const { fetchFile } = FFmpegUtil;
+        
+        const ffmpeg = new FFmpeg();
+        
+        async function loadFFmpeg() {
+            await ffmpeg.load({
+                coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.js',
+                wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm',
+            });
+        }
+        
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            await loadFFmpeg();
+            
+            await ffmpeg.writeFile('input.mp4', await fetchFile(file));
+            await ffmpeg.exec(['-i', 'input.mp4', 'output.webm']);
+            
+            const data = await ffmpeg.readFile('output.webm');
+            const video = document.getElementById('output');
+            video.src = URL.createObjectURL(
+                new Blob([data.buffer], { type: 'video/webm' })
+            );
+            video.style.display = 'block';
+        });
+    </script>
 </body>
 </html>
