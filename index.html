@@ -31,6 +31,7 @@
     <a id="download" download="looped_video.mp4" style="display:none"></a>
   </div>
   <script>
+  window.onload = function() {
     const { createFFmpeg, fetchFile } = FFmpeg;
     const ffmpeg = createFFmpeg({
       log: true,
@@ -104,6 +105,7 @@
 
       // Optionally, cleanup FS here if memory pressure.
     }
+  }
   </script>
 </body>
 </html>
