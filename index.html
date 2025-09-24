@@ -1,283 +1,109 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Video Looper - Client Side</title>
-<style>
-* { box-sizing: border-box; }
-body {
-    font-family: system-ui, -apple-system, sans-serif;
-    max-width: 700px; margin: 40px auto; padding: 20px;
-    background: #0a0a0a; color: #e0e0e0; line-height: 1.6;
-}
-h1 { text-align: center; margin-bottom: 10px; }
-.subtitle { text-align: center; color: #666; margin-bottom: 30px; }
-.container {
-    background: #1a1a1a; border-radius: 12px; padding: 30px;
-    border: 1px solid #333;
-}
-.field { margin-bottom: 20px; }
-label {
-    display: block; margin-bottom: 8px; font-weight: 500; color: #888;
-}
-input[type="file"] {
-    width: 100%; padding: 12px; background: #0a0a0a;
-    border: 1px solid #333; border-radius: 8px; color: #e0e0e0;
-    cursor: pointer;
-}
-button {
-    width: 100%; padding: 14px; background: #2563eb; color: white;
-    border: none; border-radius: 8px; font-size: 16px;
-    cursor: pointer; font-weight: 500; margin-top: 10px;
-}
-button:hover { background: #1d4ed8; }
-button:disabled { background: #444; cursor: not-allowed; }
-.info {
-    background: #1e293b; border: 1px solid #334155;
-    padding: 15px; border-radius: 8px; margin-bottom: 20px;
-    font-size: 14px;
-}
-.warning {
-    background: #7c2d12; border: 1px solid #92400e;
-    padding: 15px; border-radius: 8px; margin-bottom: 20px;
-    font-size: 14px;
-}
-.progress {
-    margin-top: 20px; padding: 20px; border-radius: 8px;
-    background: #1e293b; border: 1px solid #334155;
-    display: none;
-}
-.progress.active { display: block; }
-.progress-bar {
-    width: 100%; height: 8px; background: #334155;
-    border-radius: 4px; margin: 10px 0; overflow: hidden;
-}
-.progress-fill {
-    height: 100%; background: #2563eb; transition: width 0.3s;
-    border-radius: 4px;
-}
-.logs {
-    background: #0a0a0a; padding: 10px; border-radius: 6px;
-    font-family: monospace; font-size: 12px; color: #666;
-    max-height: 150px; overflow-y: auto; margin-top: 10px;
-    white-space: pre-wrap;
-}
-video {
-    width: 100%; margin-top: 20px; border-radius: 8px;
-    background: #000;
-}
-a {
-    display: inline-block; margin-top: 15px; color: #2563eb;
-    text-decoration: none;
-}
-a:hover { text-decoration: underline; }
-</style>
-<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.0/dist/umd/ffmpeg.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.0/dist/umd/util.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Client-Side Video Looper</title>
+  <style>
+    body { max-width: 700px; margin: 40px auto; font-family: system-ui; color: #eee; background: #121215; }
+    .container { padding: 30px; border-radius: 12px; background: #232336; margin-top: 40px; }
+    label { color: #aad; font-weight: 600; }
+    input[type=file] { width: 100%; margin: 10px 0 20px; color: #fff; }
+    button { width: 100%; margin-top: 10px; padding: 12px; background: #3355ee; color: #fff; border: 0; border-radius: 6px; font-size: 18px; }
+    #progress { margin-top: 24px; color: #aaa; }
+    #status { margin-top: 12px; color: #dc0; }
+    a { color: #7cf; }
+    video { margin-top: 20px; width: 100%; border-radius: 8px; background: #000; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
 </head>
 <body>
-<h1>🎬 Video Looper</h1>
-<p class="subtitle">Loop any video to match your audio duration - 100% in your browser!</p>
-
-<div class="container">
-    <div class="info">
-        ✨ Everything happens in your browser. No uploads, no server, completely private.
-    </div>
-    
-    <div class="warning">
-        ⚠️ Large files may take a while and use significant memory. Try to keep files under 50MB for best performance.
-    </div>
-
-    <div class="field">
-        <label for="video">Video file (MP4, WebM, MOV)</label>
-        <input type="file" id="video" accept="video/*">
-    </div>
-    
-    <div class="field">
-        <label for="audio">Audio file (MP3, WAV, M4A)</label>
-        <input type="file" id="audio" accept="audio/*">
-    </div>
-    
-    <button id="process-btn" onclick="processVideo()">Process Video</button>
-    
-    <div class="progress" id="progress">
-        <div id="status">Loading FFmpeg...</div>
-        <div class="progress-bar">
-            <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
-        </div>
-        <div class="logs" id="logs"></div>
-    </div>
-    
-    <video id="output" controls style="display: none;"></video>
-    <a id="download" style="display: none;">📥 Download Processed Video</a>
-</div>
-
-<script>
-// Initialize variables first
-const { FFmpeg } = FFmpegWASM;
-const { fetchFile } = FFmpegUtil;
-
-let ffmpeg = null;
-let isReady = false;
-
-async function loadFFmpeg() {
-    if (ffmpeg && isReady) return;
-    
-    updateStatus('Loading FFmpeg...');
-    ffmpeg = new FFmpeg();
-    
-    ffmpeg.on('log', ({ message }) => {
-        log(message);
+  <h2>🎬 Loop Video to Audio Duration (Client-Side)</h2>
+  <div class="container">
+    <label>Video (MP4, WebM):</label>
+    <input type="file" id="video" accept="video/*" />
+    <label>Audio (MP3, WAV):</label>
+    <input type="file" id="audio" accept="audio/*" />
+    <button onclick="startProcess()" id="go">Loop Video</button>
+    <div id="progress"></div>
+    <div id="status"></div>
+    <video id="output" controls style="display:none"></video>
+    <a id="download" download="looped_video.mp4" style="display:none"></a>
+  </div>
+  <script>
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const ffmpeg = createFFmpeg({
+      log: true,
+      corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/ffmpeg-core.js"
     });
-    
-    ffmpeg.on('progress', ({ progress }) => {
-        updateProgress(progress * 100);
-    });
-    
-    await ffmpeg.load({
-        coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.0/dist/umd/ffmpeg-core.js',
-        wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.0/dist/umd/ffmpeg-core.wasm',
-    });
-    
-    isReady = true;
-    updateStatus('FFmpeg loaded! Ready to process.');
-}
 
-function updateStatus(text) {
-    document.getElementById('status').textContent = text;
-}
-
-function updateProgress(percent) {
-    document.getElementById('progress-fill').style.width = percent + '%';
-}
-
-function log(text) {
-    const logs = document.getElementById('logs');
-    logs.textContent += text + '\n';
-    logs.scrollTop = logs.scrollHeight;
-}
-
-async function getMediaDuration(file, type) {
-    return new Promise((resolve) => {
-        const media = document.createElement(type);
-        media.preload = 'metadata';
-        media.onloadedmetadata = () => {
-            URL.revokeObjectURL(media.src);
-            resolve(media.duration);
+    async function getMediaDuration(file, type) {
+      return new Promise((resolve, reject) => {
+        const m = document.createElement(type);
+        m.preload = 'metadata';
+        m.onloadedmetadata = () => {
+          URL.revokeObjectURL(m.src);
+          resolve(m.duration);
         };
-        media.src = URL.createObjectURL(file);
-    });
-}
-
-async function processVideo() {
-    const videoFile = document.getElementById('video').files[0];
-    const audioFile = document.getElementById('audio').files[0];
-    
-    if (!videoFile || !audioFile) {
-        alert('Please select both video and audio files');
-        return;
+        m.onerror = reject;
+        m.src = URL.createObjectURL(file);
+      });
     }
-    
-    document.getElementById('progress').classList.add('active');
-    document.getElementById('logs').textContent = '';
-    updateProgress(0);
-    
-    try {
-        // Load FFmpeg if not already loaded
-        if (!isReady) {
-            await loadFFmpeg();
-        }
-        
-        updateStatus('Reading files...');
-        
-        // Get durations
-        const videoDuration = await getMediaDuration(videoFile, 'video');
-        const audioDuration = await getMediaDuration(audioFile, 'audio');
-        
-        log(`Video duration: ${videoDuration.toFixed(2)}s`);
-        log(`Audio duration: ${audioDuration.toFixed(2)}s`);
-        
-        // Calculate loops needed
-        const loopsNeeded = Math.ceil(audioDuration / videoDuration);
-        log(`Loops needed: ${loopsNeeded}`);
-        
-        // Write files to FFmpeg virtual file system
-        updateStatus('Loading video file...');
-        await ffmpeg.writeFile('input_video.mp4', await fetchFile(videoFile));
-        
-        updateStatus('Loading audio file...');  
-        await ffmpeg.writeFile('input_audio.mp3', await fetchFile(audioFile));
-        
-        // Create a file list for concatenation
-        let concatList = '';
-        for (let i = 0; i < loopsNeeded; i++) {
-            concatList += `file 'input_video.mp4'\n`;
-        }
-        await ffmpeg.writeFile('concat_list.txt', concatList);
-        
-        // Concatenate videos
-        updateStatus('Looping video...');
-        await ffmpeg.exec([
-            '-f', 'concat',
-            '-safe', '0',
-            '-i', 'concat_list.txt',
-            '-c', 'copy',
-            '-t', String(audioDuration),
-            'looped_video.mp4'
-        ]);
-        
-        // Add audio to the looped video
-        updateStatus('Adding audio...');
-        await ffmpeg.exec([
-            '-i', 'looped_video.mp4',
-            '-i', 'input_audio.mp3',
-            '-c:v', 'copy',
-            '-c:a', 'aac',
-            '-shortest',
-            '-y',
-            'output.mp4'
-        ]);
-        
-        // Read the output
-        updateStatus('Preparing download...');
-        const data = await ffmpeg.readFile('output.mp4');
-        
-        // Create blob and download link
-        const blob = new Blob([data.buffer], { type: 'video/mp4' });
-        const url = URL.createObjectURL(blob);
-        
-        // Show video preview
-        const video = document.getElementById('output');
-        video.src = url;
-        video.style.display = 'block';
-        
-        // Show download link
-        const download = document.getElementById('download');
-        download.href = url;
-        download.download = 'looped_video.mp4';
-        download.style.display = 'inline-block';
-        
-        updateStatus('✅ Complete! Your video is ready.');
-        updateProgress(100);
-        
-        // Cleanup
-        await ffmpeg.deleteFile('input_video.mp4');
-        await ffmpeg.deleteFile('input_audio.mp3');
-        await ffmpeg.deleteFile('concat_list.txt');
-        await ffmpeg.deleteFile('looped_video.mp4');
-        await ffmpeg.deleteFile('output.mp4');
-        
-    } catch (error) {
-        console.error(error);
-        updateStatus('❌ Error: ' + error.message);
-    }
-}
 
-// Pre-load FFmpeg when page loads
-window.addEventListener('load', () => {
-    loadFFmpeg().catch(console.error);
-});
-</script>
+    async function startProcess() {
+      const videoFile = document.getElementById('video').files[0];
+      const audioFile = document.getElementById('audio').files[0];
+      const progress = document.getElementById('progress');
+      const status = document.getElementById('status');
+      const outVid = document.getElementById('output');
+      const dl = document.getElementById('download');
+
+      if (!videoFile || !audioFile) { status.textContent = "Please select both files."; return; }
+      status.textContent = ""; outVid.style.display = "none"; dl.style.display = "none";
+      progress.textContent = "Loading FFmpeg core...";
+
+      if (!ffmpeg.isLoaded()) await ffmpeg.load();
+
+      // Clean FS before processing
+      for(const f of ['input_video.mp4','input_audio.mp3','concat.txt','looped.mp4','output.mp4'])
+        try { ffmpeg.FS('unlink', f); } catch{}
+      
+      progress.textContent = "Getting media durations...";
+      const videoDuration = await getMediaDuration(videoFile, 'video');
+      const audioDuration = await getMediaDuration(audioFile, 'audio');
+      const loopsNeeded = Math.ceil(audioDuration / videoDuration);
+      progress.textContent = `Video: ${videoDuration.toFixed(2)}s, Audio: ${audioDuration.toFixed(2)}s, Loops: ${loopsNeeded}`;
+
+      progress.textContent = "Writing files to memory...";
+      await ffmpeg.FS('writeFile', 'input_video.mp4', await fetchFile(videoFile));
+      await ffmpeg.FS('writeFile', 'input_audio.mp3', await fetchFile(audioFile));
+      let concat = Array.from({length: loopsNeeded}, ()=>"file 'input_video.mp4'").join("\n");
+      await ffmpeg.FS('writeFile', 'concat.txt', concat);
+
+      status.textContent = "Looping video and syncing...";
+      await ffmpeg.run(
+        '-f','concat','-safe','0','-i','concat.txt',
+        '-c','copy','-t', audioDuration.toString(),'looped.mp4'
+      );
+      status.textContent = "Combining audio with looped video...";
+      await ffmpeg.run(
+        '-i','looped.mp4','-i','input_audio.mp3',
+        '-c:v','copy','-c:a','aac','-shortest','output.mp4'
+      );
+      status.textContent = "Done! Rendering preview...";
+
+      const output = ffmpeg.FS('readFile', 'output.mp4');
+      const blob = new Blob([output.buffer], {type:'video/mp4'});
+      const url = URL.createObjectURL(blob);
+      outVid.src = url;
+      outVid.style.display = "";
+      dl.href = url;
+      dl.textContent = "⬇️ Download Looped Video";
+      dl.style.display = "";
+      status.textContent = "✅ Complete!";
+
+      // Optionally, cleanup FS here if memory pressure.
+    }
+  </script>
 </body>
 </html>
