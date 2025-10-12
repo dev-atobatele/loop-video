@@ -3,7 +3,7 @@ from moviepy import VideoFileClip, AudioFileClip, concatenate_videoclips, ImageC
 import tempfile
 import os
 
-st.title("Video Looper to Match Audio")
+st.title("MP3 to MP4")
 
 # User uploads
 video_file = st.file_uploader("Upload a video (.mp4), gif, or image", type=["mp4", "gif", "png", "jpg", "jpeg"])
